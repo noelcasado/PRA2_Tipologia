@@ -1,0 +1,403 @@
+---
+title: 'Tipología y ciclo de vida de los datos: Práctica 2'
+author: "Autores: David Moliner Mateu y Noel Casado Soler"
+date: "Enero 2023"
+output:
+  pdf_document:
+    highlight: zenburn
+    toc: yes
+  word_document: default
+  html_document:
+    highlight: default
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+    toc_depth: 3
+    includes:
+      in_header: 75.584-PEC-header.html
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\newpage
+
+# 1. Descripción del dataset
+
+Nuestro proyecto consta en el análisis de un dataset que contiene información médica relacionada con el corazón.
+
+Para llevarlo a cabo, necesitamos obtener los datos de una fuente externa a nosotros y por ese motivo recurrimos al repositorio *Kaggle*. Nuestro dataset será solamente uno, el propuesto para esta práctica. Este se encuentra en formato .csv y se llama *Heart Attack Analysis & Prediction Dataset*.
+
+Cita: Rashik Rahman. (Marzo 2021). Heart Attack Analysis & Prediction Dataset. Recuperado [Enero 2023] de <https://www.kaggle.com/datasets/rashikrahmanpritom/heart-attack-analysis-prediction-dataset>.
+
+Cargamos el dataset y hacemos una copia sobre la cual trabajaremos.
+
+```{r}
+heart_original = read.csv(file = "../data/heart.csv", header = TRUE)
+heart = heart_original
+```
+
+Mostramos los primeros registros para ver qué tipos de valores tenemos y mostramos un resumen estadístico de las variables.
+
+```{r}
+head(heart)
+summary(heart)
+```
+
+Únicamente tenemos 303 observaciones, lo cual es un número bastante limitado para obtener conclusiones no sesgadas, y contamos con 14 variables numéricas y categóricas.
+
+Según la información que podemos obtener a través de *Kaggle*, las descripciones de estas 14 variables son las siguientes:
+
+-   **age:** edad en años
+
+-   **sex:** sexo (hombre = 1, mujer = 0)
+
+-   **cp:** tipo de dolor de pecho (asimptomático = 0, angina típica = 1, angina atípica = 2, dolor no relacionado con angina = 3)
+
+-   **trtbps:** presión sanguínea en reposo (mm Hg)
+
+-   **chol:** colesterol en mg/dl
+
+-   **fbs:** azúcar en sangre en ayunas superior a 120 mg/dl (Verdadero = 1, Falso = 0)
+
+-   **restecg:** electrocardiograma en reposo (hipertrofia = 0, normal = 1, anormalidad en onda ST-T = 2)
+
+-   **thalachh:** máximo ritmo cardíaco obtenido
+
+-   **exng:** angina inducida por el ejercicio (Sí = 1, No = 0)
+
+-   **oldpeak:** depresión en la onda ST inducida por ejericio
+
+-   **slp:** pendiente del pico del segmento ST (pendiente negativa = 0, plana = 1, pendiente positiva = 2)
+
+-   **caa:** número de vasos prinicpales
+
+-   **thall:** resultado de prueba de esfuerzo nuclear ()
+
+-   **output:** predicción de ataque al corazón
+
+\newpage
+
+# 2. Integración y selección
+
+Hemos decidido realizar una subselección de variables para enfocar nuestro análisis. Dejaremos fuera las variables que están relacionadas con la angina inducida por el ejercicio, por lo que nuestro dataset ahora constará de las siguientes variables:
+
+-   **age:** edad en años
+
+-   **sex:** sexo (hombre = 1, mujer = 0)
+
+-   **cp:** tipo de dolor de pecho (asimptomático = 0, angina típica = 1, angina atípica = 2, dolor no relacionado con angina = 3)
+
+-   **trtbps:** presión sanguínea en reposo (mm Hg)
+
+-   **chol:** colesterol en mg/dl
+
+-   **fbs:** azúcar en sangre en ayunas superior a 120 mg/dl (Verdadero = 1, Falso = 0)
+
+-   **restecg:** electrocardiograma en reposo (hipertrofia = 0, normal = 1, anormalidad en onda ST-T = 2)
+
+-   **thalachh:** máximo ritmo cardíaco obtenido
+
+-   **thall:** resultado de prueba de esfuerzo nuclear ()
+
+-   **output:** predicción de ataque al corazón
+
+```{r}
+data = heart[,c("age", "sex", "cp", "trtbps", "chol", "fbs", "restecg", "thalachh", "thall", "output")]
+```
+
+Convertimos las variables de nuestro subset a numéricas, si son cuantitativas, y a factores, si son categóricas.
+
+```{r}
+sapply(data, function(x) class(x))
+
+data$age <- as.numeric(data$age)
+data$sex <- as.factor(data$sex)
+data$cp <- as.factor(data$cp)
+data$trtbps <- as.numeric(data$trtbps)
+data$chol <- as.numeric(data$chol)
+data$fbs <- as.factor(data$fbs)
+data$restecg <- as.factor(data$restecg)
+data$thalachh <- as.numeric(data$thalachh)
+data$thall <- as.factor(data$thall)
+data$output <- as.factor(data$output)
+```
+
+Generamos una nueva variable categórica por tramos de edad para poder usarla como grupo de comparación más adelante.
+
+-   Grupo A: 0 a 40 años de edad
+
+-   Grupo B: 41 a 60 años de edad
+
+-   Grupo C: Mayores de 60 años
+
+```{r}
+data$age_group <- cut(data$age, breaks = c(0,40,60,100), labels = c("A","B","C"))
+```
+
+Con el nuevo dataset listo, mostramos nuevamente los primeros registros para ver qué tipos de valores tenemos y mostramos el resumen estadístico de las variables.
+
+```{r}
+head(data)
+summary(data)
+```
+
+
+\newpage
+
+# 3. Limpieza de los datos
+
+## 3.1 Ceros y elementos vacíos
+
+Comprobamos si en nuestro dataset tenemos valores nulos.
+
+```{r}
+colSums(is.na(heart))
+```
+
+Podemos afirmar que no tenemos valores nulos en el dataset, por lo que no habrá que gestionarlos.
+
+En cuanto a los valores que son 0, tenemos variables que pueden tomar este valor, como son *sex*, *cp*, *fbs*, *rest_ecg*, y *output*.
+
+Sin embargo, la variable *thall* tiene dos registros con valor 0, lo cual no es posible según la descripción de la variable facilitada en la fuente del dataset. Lo que haremos con estos registros será apartarlos para que no sean objeto de análisis.
+
+```{r}
+data = subset(data, thall != 0)
+summary(data$thall)
+```
+
+## 3.2 Valores extremos
+
+Cargamos la librería tidyverse, que incluye ggplot2, para poder realizar unos gráficos boxplot y observar si existen valores extremos.
+
+```{r warning=FALSE}
+if(!require("tidyverse")) install.packages("tidyverse"); library("tidyverse")
+```
+\newpage
+Graficaremos las 4 variables numéricas y mostraremos los valores outlier mediante *boxplot.stats*.
+
+```{r}
+age_box = ggplot(data, aes(x=age)) +
+  geom_boxplot(outlier.colour = "red") +
+  labs(title = "Boxplot del atributo age")
+age_box
+boxplot.stats(data$age)$out
+```
+
+En el caso de la variable *age* no tenemos valores extremos.
+
+\newpage
+
+```{r}
+trtbps_box = ggplot(data, aes(x=trtbps)) +
+  geom_boxplot(outlier.colour = "red") +
+  labs(title = "Boxplot del atributo trtbps")
+trtbps_box
+boxplot.stats(data$trtbps)$out
+```
+
+En el caso de la variable *trtbps* nos encontramos con 9 valores extremos. Aun así, parecer ser que no se tratan de errores de medición sino que únicamente son valores extremos. Los dejaremos en el dataset.
+
+\newpage
+
+```{r}
+chol_box = ggplot(data, aes(x=chol)) +
+  geom_boxplot(outlier.colour = "red") +
+  labs(title = "Boxplot del atributo chol")
+chol_box
+boxplot.stats(data$chol)$out
+```
+
+En el caso de la variable *chol* tenemos 5 valores extremos, 4 de ellos son valores elevados pero muy cercanos a lo que sería un valor normal. El valor de *564* sí que puede ser extremo y no un error de medición, pero al encontrarse tan apartado y ser un único valor, lo dejaremos fuera del dataset y no será objeto de análisis. Como es un único valor, con un simple *subset* lo dejaremos fuera del dataset.
+
+```{r}
+data = subset(data, chol != 564)
+summary(data$chol)
+```
+
+\newpage
+
+```{r}
+thalachh_box = ggplot(data, aes(x=thalachh)) +
+  geom_boxplot(outlier.colour = "red") +
+  labs(title = "Boxplot del atributo thalachh")
+thalachh_box
+boxplot.stats(data$thalachh)$out
+```
+
+En el caso de la variable *thalachh* tenemos 1 valor extremo. Como en el caso de *trtbps* podemos asumir de que no se trata de un error sino de un valor extremo correcto, dado que se trata de una persona perteneciente al grupo de mayores de 60 años es más probable que tenga un ritmo cardíaco máximo bajo.
+
+\newpage
+
+# 4. Análisis de los datos
+
+Queremos realizar un estudio de la incidencia en el nivel de colesterol del sexo biológico de las personas y del rango de edad al que pertenecen.   
+
+También estamos interesados en saber si existe correlación entre alguna de las variables del conjunto de datos.   
+
+Por último, queremos encontrar un modelo de regresión que nos permita predecir la probabilidad de que una pesona sufra problemas cardíacos a partir de ciertos datos fácilmente medibles.   
+
+## 4.1. Selección de los grupos de datos
+
+Realizamos una agrupación por sexo, distinguiendo hombres y mujeres.
+
+```{r}
+data.male <- data[data$sex == "1",]
+data.female <- data[data$sex == "0",]
+```
+
+Y realizamos también una agrupación por grupo de edad, la variable categórica que hemos creado a partir de la variable numérica *age*.
+
+```{r}
+data.ageA <- data[data$age_group == "A",]
+data.ageB <- data[data$age_group == "B",]
+data.ageC <- data[data$age_group == "C",]
+```
+
+## 4.2 Normalidad y homogeneidad de la varianza
+
+Para poder seleccionar correctamente el tipo de análisis que vamos a aplicar a los datos, es necesario comprobar si estos siguen los supuestos de distribución normal y homegeneidad de las varianzas (homocedasticidad).
+
+Para verificar la suposición de la normalidad, algunas de las pruebas más habituales son los tests de Kolmogorov-Smirnov y de Shapiro-Wilk.   
+
+El test de Shapiro-Wilk se considera uno de los métodos más potentes para contrastar la normalidad. Asumiendo como hipótesis nula que la población está distribuida normalmente, si el p-valor es menor al nivel de significancia, generalmente $\alpha$ = 0.05, entonces la hipótesis nula es rechazada y se concluye que los datos no cuentan con una distribución normal.   
+
+```{r}
+shapiro.test(data$age)
+```
+Como p-value < $\alpha$, se rechaza la hipótesis nula, por lo que la variable *age* no sigue una distribución normal.
+
+```{r}
+shapiro.test(data$chol)
+```
+Se obtiene la misma conclusión para la variable *chol*.   
+
+Aún así, por el Teorema Central del Límite, podemos asumir la normalidad ya que el número de observaciones es grande.   
+
+Comprobamos ahora la homocedasticidad. Al asumir la normalidad por el TCL, utilizaremos el test de Levene.   
+
+En este test, la hipótesis nula asume igualdad de varianzas en los diferentes grupos de datos, por lo que p-valores inferiores al nivel de significancia indicarán heterocedasticidad.   
+
+```{r}
+library(car)
+leveneTest(chol ~ sex, data = data)
+```
+Dado que obtenemos un p-valor inferior al nivel de significancia (0.05), rechazamos la hipótesis nula de homocedasticidad y concluimos que hay heterogeneidad de varianzas.
+
+## 4.3 Análisis estadístico comparativo
+
+### 4.3.1 ¿Tienen los hombres el colesterol más alto que las mujeres?
+
+En este caso realizaremos una comparación entre dos grupos.    
+
+Como hemos comprobado que no se cumple el criterio de homocedasticidad, aplicaremos una prueba no paramétrica como es el test de Mann-Whitney, ya que se trata de grupos de datos independientes.   
+
+```{r}
+wilcox.test(chol ~ sex, data = data)
+```
+El valor de p-value menor que el nivel de significancia indica que hay que rechazar la hipótesis nula de que el colesterol es igual para los dos grupos, y por tanto podemos concluir que hay diferencias entre los dos sexos.   
+
+
+### 4.3.2 ¿Hay diferencias en el colesterol entre los diferentes grupos de edad?   
+
+En este caso vamos a aplicar un análisis de comparación entre más de dos grupos.   
+
+Al no cumplirse las asunciones de normalidad e igualdad de varianzas, hemos de utilizar un test no paramétrico, por lo que utilizaremos el test de Kruskal-Wallis.   
+
+```{r}
+kruskal.test(chol ~ age_group, data = data)
+```
+Dado que el p-valor obtenido es menor al nivel de significancia, se puede concluir que el nivel de colesterol muestra diferencias significativas para los diferentes grupos de edad.   
+
+### 4.3.3 Correlación   
+
+Elaboramos un gráfico de correlación, para encontrar posibles correlaciones entre variables numéricas. Para ello, cargamos la librería *corrplot*.
+
+```{r warning=FALSE}
+if(!require("corrplot")) install.packages("corrplot"); library("corrplot")
+n = c("age", "chol", "trtbps", "thalachh")
+factores = data %>% select(all_of(n))
+res = cor(factores)
+corrplot(res,method="color",tl.col="black", tl.srt=30, order = "AOE", number.cex=0.75, sig.level = 0.01, addCoef.col = "black")
+```
+
+La correlación más fuerte que encontramos es de tipo negativa entre las variables *age* y *thalachh*. Esta observación tiene sentido, ya que, tal y como hemos comentado anteriormente, es normal que a mayor edad menor sea el ritmo cardíaco máximo obtenido.
+
+### 4.3.4 Regresión.
+
+Mediante un modelo de regresión logística intentaremos predecir el valor de *output* en función del resto de parámetros.
+
+Primero generamos los conjuntos de entrenamiento y de test. Con un dataset de tan pocas observaciones es complicado, pero veremos qué resultados obtenemos.
+
+```{r}
+n<- dim(data)[1]
+set.seed(1234)
+train <- sample(1:n , 0.8*n)
+data.test <- data[-train,]
+data.train <- data[train,]
+```
+
+Elaboramos un primer modelo de regresión logística con todas las variables.
+
+```{r}
+model_log <- glm(output ~ . -age_group, family = binomial(link = logit), data= data.train)
+summary(model_log)
+```
+
+Quitamos las variables no explicativas como *age*, *trtbps*, *chol*, *fbs*, *restecg*, *thall* y *age_group*.
+
+```{r}
+model_log <- glm(output ~ . -age_group -age -trtbps - chol - fbs -restecg - thall, family = binomial(link = logit), data= data.train)
+summary(model_log)
+```
+
+Probamos la predicción del modelo utilizando para ello el conjunto de test.
+
+```{r}
+data.test$pred <- predict(model_log,data.test, type="response")
+data.test$pred_final <- ifelse(data.test$pred > 0.5, 1, 0)
+table(data.test$pred_final,data.test$output, dnn=c("Pred.","Obs."))
+```
+
+Obtenemos los siguientes resultados:
+
+- Sensibilidad = VP/(VP+FN)
+
+- VP = 30/33 = 0.91
+
+- Predice correctamente el 91% de los casos.
+
+\newpage
+
+# Conclusiones
+
+Al analizar la estructura del data frame, hemos podido ver que el conjunto de datos constaba tanto de variables calitativas como cuantitativas, y que en ninguna de ellas aparecían valores ausentes, y muy pocos valores extremos que se pudiesen considerar erróneos, y que al ser un número muy pequeño, hemos decidido eliminarlos del conjunto de datos.   
+
+Separamos los datos en grupos por sexos (utilizando el factor sex) y por grupos de edad (utilizando una variable categórica age_group generada a partir de la variable numérica age), con la finalidad de realizar un estudio de variabilidad del nivel de colesterol  en sangre en función del sexo y del grupo de edad al que pertenecen los indivíduos de la población.   
+
+Hemos comprobado que la distribución de las variables no cumplía con el supuesto de normalidad, aunque la podríamos asumir por el Teorema Central del Límite, también encontramos que no cumplen con el criterio de homocedasticidad, por lo que necesitaremos aplicar tests no paramétricos en los análisis.   
+
+A partir de los distintos análisis, hemos podido comprobar que sí que existe una diferencia en el nivel de colesterol entre hombres y mujeres, y que también existe diferencia entre distintos grupos de edad.   
+
+Se observa una correlación negativa entre la edad y la frecuencia cardíaca máxima.   
+
+Por último, hemos obtenido un modelo de regresión logística que nos permita predecir, a partir de una serie de valores, la probabilidad de que el sujeto sufra un problema cardíaco.   
+
+A partir de la generación del modelo de regresión, hemos visto que muchas de las variables del modelo no son significativas para predecir los problemas cardíacos, quedando como variables explicativas únicamente *sex*, *cp* y *thallach*, por lo que es probable que el conjunto de datos no sea muy útil para resolver el problema planteado.   
+
+# Exportación del fichero de datos resultante
+
+```{r}
+write.csv(data, file="../data/heart_final.csv")
+```
+
+
+# Contribuciones   
+
+|Contribuciones           |Firma                                 |
+|----------------------------|------------------------------------------------------------------|
+|Investigación Previa|NCS,DMM |
+|Redacción de las respuestas|NCS,DMM |
+|Desarrollo del código|NCS,DMM |
+|Participación en el vídeo|NCS,DMM |
